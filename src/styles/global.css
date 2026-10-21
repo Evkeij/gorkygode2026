@@ -1,0 +1,121 @@
+/* src/styles/global.css */
+
+:root {
+  font-family: 'Manrope', Inter, system-ui, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', sans-serif;
+  color: #f0edf9;
+  background: #0b0b12;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  --app-bg: #0b0b12;
+  --panel-bg: rgba(22, 21, 34, 0.57);
+  --panel-border: rgba(255, 255, 255, 0.09);
+  --text-primary: #f0edf9;
+  --text-secondary: #aaa7bc;
+  --accent: #a992ff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+}
+
+html {
+  overflow: hidden;
+}
+
+body {
+  overflow: hidden;
+  background:
+    radial-gradient(
+      ellipse at 78% 10%,
+      rgba(105, 79, 175, 0.16),
+      transparent 42%
+    ),
+    radial-gradient(
+      ellipse at 10% 90%,
+      rgba(64, 53, 112, 0.12),
+      transparent 38%
+    ),
+    var(--app-bg);
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+#root {
+  isolation: isolate;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: clamp(220px, 25%, 310px) minmax(0, 1fr);
+  gap: clamp(10px, 1.2vw, 18px);
+
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+
+  min-width: 0;
+  min-height: 0;
+  padding: clamp(10px, 1.2vw, 18px);
+
+  overflow: hidden;
+}
+
+.glass-panel {
+  border: 1px solid var(--panel-border);
+  background: var(--panel-bg);
+
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+/* Узкие окна приложения */
+@media (max-width: 760px) {
+  .app-shell {
+    grid-template-columns: minmax(175px, 31%) minmax(0, 1fr);
+    gap: 8px;
+    padding: 8px;
+  }
+}
+
+@media (max-width: 520px) {
+  .app-shell {
+    grid-template-columns: 64px minmax(0, 1fr);
+    gap: 8px;
+    padding: 6px;
+  }
+}
