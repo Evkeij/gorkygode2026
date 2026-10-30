@@ -40,8 +40,6 @@ class Embedder:
             response = self.client.embeddings.create(
                 model=f"emb://{self.folder}/{model}",
                 input=text,
-                # Явно просим float: SDK по умолчанию может запросить
-                # base64, а не все совместимые API это поддерживают.
                 encoding_format="float",
             )
             return list(response.data[0].embedding)
