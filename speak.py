@@ -12,7 +12,7 @@ import requests
 from dotenv import load_dotenv
 
 if getattr(sys, 'frozen', False):
-    BASE_DIR = os.path.dirname(sys.executable)
+    BASE_DIR = os.path.join(os.getenv('APPDATA'), "DescVoice")
 else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 

@@ -17,14 +17,12 @@ from embeddings import Embedder
 from tools import TOOLS, execute_tool
 
 # Определяем, откуда мы запущены (из .exe или из кода)
-if getattr(sys, 'frozen', False):
-    # Если это собранный backend.exe, берем папку, где он лежит
-    BASE_DIR = os.path.dirname(sys.executable)
+if getattr(sys, "frozen", False):
+    BASE_DIR = os.path.join(os.getenv("APPDATA"), "DescVoice")
 else:
-
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-env_path = os.path.join(BASE_DIR, '.env')
+env_path = os.path.join(BASE_DIR, ".env")
 load_dotenv(env_path)
 
 YANDEX_CLOUD_FOLDER = os.getenv("YANDEX_CLOUD_FOLDER")
@@ -79,15 +77,17 @@ def flatten_tools(tools):
     for tool in tools:
         if tool.get("type") == "function" and "function" in tool:
             fn = tool["function"]
-            result.append({
-                "type": "function",
-                "name": fn["name"],
-                "description": fn.get("description", ""),
-                "parameters": fn.get(
-                    "parameters",
-                    {"type": "object", "properties": {}},
-                ),
-            })
+            result.append(
+                {
+                    "type": "function",
+                    "name": fn["name"],
+                    "description": fn.get("description", ""),
+                    "parameters": fn.get(
+                        "parameters",
+                        {"type": "object", "properties": {}},
+                    ),
+                }
+            )
         else:
             result.append(tool)
     return result
@@ -115,6 +115,7 @@ class Assistant:
         self.backend = SQLiteBackend()
         self.last_response_id = None
         self.tools = flatten_tools(TOOLS)
+
     # очистка контекста (максимум выбираем в MAX_CONTEXT_TOKEN)
 
     def _remember_response(self, response):
@@ -172,14 +173,21 @@ class Assistant:
 
         print("--- КОНЕЦ ШАГА ---\n")
 
-    def handle(self, user_text):    # noqa: max-complexity=25
+    def handle(self, user_text):  # noqa: max-complexity=25
         """Обрабатывает текстовый запрос пользователя: вызывает LLM, выполняет инструменты и возвращает ответ."""
 
         now = datetime.now().astimezone()
         current_time = now.isoformat(timespec="minutes")
         # вывод числа и дня недели для ближайших 14 дней, передача в модель в помощь вычисления относительных дат
-        weekdays = ["Понедельник", "Вторник", "Среда",
-                    "Четверг", "Пятница", "Суббота", "Воскресенье"]
+        weekdays = [
+            "Понедельник",
+            "Вторник",
+            "Среда",
+            "Четверг",
+            "Пятница",
+            "Суббота",
+            "Воскресенье",
+        ]
         calendar_helper = "СПРАВОЧНИК ДАТ (используй его для вычисления следующий, ближайший и тп.):\n"
         for i in range(14):
             d = now + timedelta(days=i)
@@ -199,28 +207,20 @@ class Assistant:
 
             for step in range(MAX_TOOL_STEPS):
                 tool_calls = [
-                    item for item in response.output
-                    if item.type == "function_call"
+                    item for item in response.output if item.type == "function_call"
                 ]
 
                 self._debug_response(response, step)
 
                 if not tool_calls:
                     self._remember_response(response)
-                    return (
-                        response.output_text.strip()
-                        or "Не удалось получить ответ."
-                    )
+                    return response.output_text.strip() or "Не удалось получить ответ."
 
                 outputs = []
 
                 for call in tool_calls:
                     try:
-                        args = (
-                            json.loads(call.arguments)
-                            if call.arguments
-                            else {}
-                        )
+                        args = json.loads(call.arguments) if call.arguments else {}
                     except (json.JSONDecodeError, TypeError):
                         args = None
 
@@ -242,16 +242,16 @@ class Assistant:
                                 "error": "Не удалось выполнить инструмент.",
                             }
 
-                    result_json = json.dumps(
-                        result, ensure_ascii=False, default=str
-                    )
+                    result_json = json.dumps(result, ensure_ascii=False, default=str)
                     debug(f"»> РЕЗУЛЬТАТ: {result_json}\n")
 
-                    outputs.append({
-                        "type": "function_call_output",
-                        "call_id": call.call_id,
-                        "output": result_json,
-                    })
+                    outputs.append(
+                        {
+                            "type": "function_call_output",
+                            "call_id": call.call_id,
+                            "output": result_json,
+                        }
+                    )
 
                 response = self._create_response(
                     input=outputs,
@@ -259,10 +259,7 @@ class Assistant:
                 )
 
             self._remember_response(response)
-            return (
-                response.output_text.strip()
-                or "Готово, но ответ пустой."
-            )
+            return response.output_text.strip() or "Готово, но ответ пустой."
         # если не получилось получить ответ от модели
         except openai.BadRequestError as error:
             if self.last_response_id is not None:
@@ -273,10 +270,7 @@ class Assistant:
                         previous_id=None,
                     )
                     self._remember_response(response)
-                    return (
-                        response.output_text.strip()
-                        or "Не удалось получить ответ."
-                    )
+                    return response.output_text.strip() or "Не удалось получить ответ."
                 except Exception as retry_error:
                     print(f"Повторная ошибка: {retry_error}")
 
