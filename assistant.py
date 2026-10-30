@@ -1,3 +1,9 @@
+"""
+Основной модуль голосового ассистента.
+Реализует класс Assistant, который взаимодействует с Yandex Cloud LLM,
+выполняет tool-calling и поддерживает контекст диалога.
+"""
+
 import json
 import os
 import sys
@@ -6,16 +12,16 @@ from datetime import datetime, timedelta
 import openai
 from dotenv import load_dotenv
 
+from Backend import SQLiteBackend
 from embeddings import Embedder
 from tools import TOOLS, execute_tool
-from Backend import SQLiteBackend
 
 # Определяем, откуда мы запущены (из .exe или из кода)
 if getattr(sys, 'frozen', False):
     # Если это собранный backend.exe, берем папку, где он лежит
     BASE_DIR = os.path.dirname(sys.executable)
 else:
-   
+
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 env_path = os.path.join(BASE_DIR, '.env')
@@ -38,21 +44,23 @@ DEBUG = os.environ.get("DEBUG") == "1"
 SYSTEM_PROMPT = """
 Ты — русскоязычный голосовой ассистент женского пола для личных задач и напоминаний.
 Задача: создавать, изменять, искать и выводить пользователю напоминания, встречи и задачи.
-ГЛАВНОЕ ПРАВИЛО: время встреч и записей нельзя придумывать, если пользователь не назвал время - переспроси (в следующий понедельник у меня врач -> спросить во сколько у вас прием?).
+ГЛАВНОЕ ПРАВИЛО: время встреч и записей нельзя придумывать, если пользователь не назвал время - переспроси
+(в следующий понедельник у меня врач -> спросить во сколько у вас прием?).
     - «планы на 22 октября», «какие записи на завтра» — search_records с date_from и date_to,
     равными этой дате в формате YYYY-MM-DD, (is_completed=false)
-    - «когда мне к врачу», «во сколько в школу», «где запись про …» — search_records с коротким query (тема поиска 
+    - «когда мне к врачу», «во сколько в школу», «где запись про …» — search_records с коротким query (тема поиска
     без дат и вопросительных слов), (is_completed=false)
-    - Если пользователь сообщает о выполнении какого-либо действия — используй search_records, найди и измени запись на 
+    - Если пользователь сообщает о выполнении какого-либо действия — используй search_records, найди и измени запись на
     is_completed.
 
 Правила работы с датой и временем:
     - Преобразуй относительные дату и время в формат ISO 8601: YYYY-MM-DDTHH:MM:SS
-    - Если пользователь говорит «в 8 утра» — это 08:00. «В 8 вечера» — это 20:00, если в 12 часовом формате (час - шесть) - переспроси утра или вечера.
-    - Если пользователь использует слова «следующий», «ближайший», «эта неделя», «следующая неделя», ты обязан найти 
+    - Если пользователь говорит «в 8 утра» — это 08:00. «В 8 вечера» — это 20:00, если в 12 часовом формате
+    (час - шесть) - переспроси утра или вечера.
+    - Если пользователь использует слова «следующий», «ближайший», «эта неделя», «следующая неделя», ты обязан найти
     текущие дату и время в начале сообщения и вычислить дату записи с помощью СПРАВОЧНИКА ДАТ. Если не уверен — спроси.
    Обычный разговор и формат вывода:
-    - Если ты выводишь более одной записи (задачи, встречи, напоминания), каждая запись должна быть на новой строке в 
+    - Если ты выводишь более одной записи (задачи, встречи, напоминания), каждая запись должна быть на новой строке в
     формате: - [название] [дата] [время]. Не перечисляй записи через запятую в одном предложении.
     - После выполнения инструмента кратко сообщи результат в разговорной форме для аудио вывода (дата, время).
     - Не используй markdown-разметку и смайлики (эмодзи).
@@ -60,11 +68,13 @@ SYSTEM_PROMPT = """
 
 
 def debug(*args, **kwargs):
+    """Печатает отладочную информацию, если включен DEBUG."""
     if DEBUG:
         print(*args, **kwargs)
 
 
 def flatten_tools(tools):
+    """Приводит описание инструментов к плоскому формату, ожидаемому API."""
     result = []
     for tool in tools:
         if tool.get("type") == "function" and "function" in tool:
@@ -84,6 +94,11 @@ def flatten_tools(tools):
 
 
 class Assistant:
+    """
+    Текстовый ассистент для управления задачами, напоминаниями и встречами.
+    Использует Yandex Cloud LLM с поддержкой function calling.
+    """
+
     def __init__(self):
         if not YANDEX_CLOUD_API_KEY:
             raise RuntimeError("Не задана YANDEX_CLOUD_API_KEY.")
@@ -101,10 +116,11 @@ class Assistant:
         self.last_response_id = None
         self.tools = flatten_tools(TOOLS)
     # очистка контекста (максимум выбираем в MAX_CONTEXT_TOKEN)
+
     def _remember_response(self, response):
         """Запоминает id ответа для  продолжения диалога.
         Если вход вырос до MAX_CONTEXT_TOKENS и более, контекст очищается:
-        следующий запрос уйдёт без previous_response_id."""
+        следующий запрос уйдет без previous_response_id."""
         input_tokens = 0
         usage = getattr(response, "usage", None)
         if usage is not None:
@@ -120,14 +136,16 @@ class Assistant:
             self.last_response_id = response.id
 
     def _run_tool(self, name, arguments):
+        """Выполняет указанный инструмент и возвращает результат."""
         if not isinstance(arguments, dict):
             return {
                 "success": False,
                 "error": "Аргументы инструмента должны быть объектом.",
             }
         return execute_tool(name, arguments, self.backend, self.embedder)
-    # для отладки (просмотр вызываемых функций, токенов, ошибок)
+
     def _debug_response(self, response, step):
+        """Выводит подробную информацию об ответе модели в режиме отладки."""
         if not DEBUG:
             return
 
@@ -154,12 +172,14 @@ class Assistant:
 
         print("--- КОНЕЦ ШАГА ---\n")
 
-    def handle(self, user_text):
+    def handle(self, user_text):    # noqa: max-complexity=25
+        """Обрабатывает текстовый запрос пользователя: вызывает LLM, выполняет инструменты и возвращает ответ."""
 
         now = datetime.now().astimezone()
         current_time = now.isoformat(timespec="minutes")
         # вывод числа и дня недели для ближайших 14 дней, передача в модель в помощь вычисления относительных дат
-        weekdays = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
+        weekdays = ["Понедельник", "Вторник", "Среда",
+                    "Четверг", "Пятница", "Суббота", "Воскресенье"]
         calendar_helper = "СПРАВОЧНИК ДАТ (используй его для вычисления следующий, ближайший и тп.):\n"
         for i in range(14):
             d = now + timedelta(days=i)
@@ -188,8 +208,8 @@ class Assistant:
                 if not tool_calls:
                     self._remember_response(response)
                     return (
-                            response.output_text.strip()
-                            or "Не удалось получить ответ."
+                        response.output_text.strip()
+                        or "Не удалось получить ответ."
                     )
 
                 outputs = []
@@ -240,8 +260,8 @@ class Assistant:
 
             self._remember_response(response)
             return (
-                    response.output_text.strip()
-                    or "Готово, но ответ пустой."
+                response.output_text.strip()
+                or "Готово, но ответ пустой."
             )
         # если не получилось получить ответ от модели
         except openai.BadRequestError as error:
@@ -254,8 +274,8 @@ class Assistant:
                     )
                     self._remember_response(response)
                     return (
-                            response.output_text.strip()
-                            or "Не удалось получить ответ."
+                        response.output_text.strip()
+                        or "Не удалось получить ответ."
                     )
                 except Exception as retry_error:
                     print(f"Повторная ошибка: {retry_error}")
@@ -266,8 +286,9 @@ class Assistant:
         except Exception as error:
             print(f"Ошибка ассистента: {error}")
             return "Произошла ошибка при обработке запроса."
-        
+
     def _create_response(self, input, previous_id):
+        """Создает запрос к Yandex Cloud Responses API."""
         return self.client.responses.create(
             model=f"gpt://{YANDEX_CLOUD_FOLDER}/{YANDEX_CLOUD_MODEL}",
             temperature=0.2,

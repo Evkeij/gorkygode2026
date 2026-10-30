@@ -1,4 +1,5 @@
 """Получение эмбеддингов через Yandex Cloud (OpenAI-совместимый API)."""
+
 EMBEDDING_DOC_MODEL = "text-embeddings-v2-query/latest"
 EMBEDDING_QUERY_MODEL = "text-embeddings-v2-query/latest"
 
@@ -16,7 +17,7 @@ def build_embedding_text(record_type, title):
 
 
 class Embedder:
-    """Тонкая обёртка над embeddings API. При ошибке возвращает None."""
+    """Тонкая обертка над embeddings API. При ошибке возвращает None."""
 
     def __init__(
         self,
@@ -31,6 +32,7 @@ class Embedder:
         self.query_model = query_model
 
     def _embed(self, text, model):
+        """Внутренний метод получения эмбеддинга."""
         text = (text or "").strip()
 
         if not text:
@@ -40,6 +42,7 @@ class Embedder:
             response = self.client.embeddings.create(
                 model=f"emb://{self.folder}/{model}",
                 input=text,
+                # Явно просим float: SDK по умолчанию может запросить base64, а не все совместимые API это поддерживают.
                 encoding_format="float",
             )
             return list(response.data[0].embedding)

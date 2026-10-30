@@ -1,7 +1,11 @@
+"""
+Описание инструментов (function calling) и их исполнителей для ассистента.
+Содержит схемы TOOLS и функции execute_tool / execute*.
+"""
+
 import re
 from datetime import datetime
 
-from embeddings import build_embedding_text
 from Backend import (
     DEFAULT_TOP_K,
     MAX_TOP_K,
@@ -9,6 +13,7 @@ from Backend import (
     error,
     parse_iso,
 )
+from embeddings import build_embedding_text
 
 _WORD_RE = re.compile(r"[а-яёa-z0-9]{3,}", re.IGNORECASE)
 
@@ -63,7 +68,7 @@ TOOLS = [
             },
         },
     },
-     # ПОИСК
+    # ПОИСК
     {
         "type": "function",
         "function": {
@@ -126,7 +131,7 @@ TOOLS = [
             },
         },
     },
-     # ИЗМЕНЕНИЕ
+    # ИЗМЕНЕНИЕ
     {
         "type": "function",
         "function": {
@@ -175,7 +180,7 @@ TOOLS = [
             },
         },
     },
-     # УДАЛЕНИЕ
+    # УДАЛЕНИЕ
     {
         "type": "function",
         "function": {
@@ -199,11 +204,16 @@ TOOLS = [
             },
         },
     }
-    
+
 ]
 
- # ДЛЯ ПРОВЕРКИ ПРАВИЛЬНОГО ФОРМАТА ДАТ
+
 def _optional_date(arguments, key, end_of_day=False):
+    """
+    Проверка прафильного формата дат.
+
+    Парсит опциональный параметр даты из аргументов инструмента.
+    """
     value = arguments.get(key)
     if value is None:
         return None, None
@@ -217,8 +227,13 @@ def _optional_date(arguments, key, end_of_day=False):
         parsed = parsed.replace(hour=23, minute=59, second=59)
     return parsed, None
 
- # СОЗДАНИЕ
-def _execute_create_record(arguments, backend, embedder=None):
+
+def _execute_create_record(arguments, backend, embedder=None):  # noqa: max-complexity=25
+    """
+    Создание записи.
+
+    Выполняет инструмент create_record.
+    """
     record_type = arguments.get("type")
     title = arguments.get("title")
     record_date = arguments.get("date")
@@ -267,9 +282,14 @@ def _execute_create_record(arguments, backend, embedder=None):
         is_completed=False,
         embedding=embedding,
     )
- # ПОИСК
 
-def _execute_search_records(arguments, backend, embedder=None):
+
+def _execute_search_records(arguments, backend, embedder=None): # noqa: max-complexity=25
+    """
+    Поиск записи.
+
+    Выполняет инструмент search_records (текст + эмбеддинги).
+    """
     query = arguments.get("query")
     record_type = arguments.get("type")
     is_completed = arguments.get("is_completed")
@@ -347,8 +367,13 @@ def _execute_search_records(arguments, backend, embedder=None):
 
     return {"success": True, "total_found": 0, "records": []}
 
- # ИЗМЕНЕНИЕ
-def _execute_update_record(arguments, backend, embedder=None):
+
+def _execute_update_record(arguments, backend, embedder=None):  # noqa: max-complexity=25
+    """
+    Изменение записи.
+
+    Выполняет инструмент update_record.
+    """
     record_id = arguments.get("id")
     if isinstance(record_id, bool) or not isinstance(record_id, int):
         return error("Не указан id записи.")
@@ -413,8 +438,13 @@ def _execute_update_record(arguments, backend, embedder=None):
 
     return backend.update_record(record_id, changes, embedding=embedding)
 
- # УДАЛЕНИЕ
+
 def _execute_delete_record(arguments, backend):
+    """
+    Удаление записи.
+
+    Выполняет инструмент delete_record.
+    """
     record_id = arguments.get("id")
     if isinstance(record_id, bool) or not isinstance(record_id, int):
         return error("Не указан id записи.")
@@ -425,7 +455,9 @@ def _execute_delete_record(arguments, backend):
 
     return backend.delete_record(record_id)
 
+
 def execute_tool(name, arguments, backend, embedder=None):
+    """Диспетчер вызова инструментов по имени."""
     if not isinstance(arguments, dict):
         return error("Некорректные аргументы.")
     if backend is None:
@@ -442,5 +474,5 @@ def execute_tool(name, arguments, backend, embedder=None):
 
     if name == "delete_record":
         return _execute_delete_record(arguments, backend)
-    
+
     return error(f"Неизвестный инструмент: {name}")

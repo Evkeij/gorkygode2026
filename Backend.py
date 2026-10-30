@@ -1,13 +1,18 @@
+"""
+Модуль работы с SQLite-базой данных ассистента.
+Содержит класс SQLiteBackend и вспомогательные функции
+кодирования/декодирования записей, работы с эмбеддингами и фильтрации.
+"""
+
 import math
+import os
 import re
 import sqlite3
+import sys
 from datetime import datetime
 
 import scheduler
 from embeddings import build_embedding_text
-
-import os
-import sys
 
 if getattr(sys, 'frozen', False):
     # Папка: C:\Users\user\AppData\Roaming\DescVoice
@@ -29,6 +34,7 @@ _DONE_MARK = " ✓"
 
 
 def parse_iso(value):
+    """Парсит строку ISO 8601 в datetime без timezone."""
     parsed = datetime.fromisoformat(value)
     if parsed.tzinfo is not None:
         parsed = parsed.astimezone().replace(tzinfo=None)
@@ -36,6 +42,7 @@ def parse_iso(value):
 
 
 def cosine(a, b):
+    """Вычисляет косинусное сходство двух векторов."""
     if not a or not b or len(a) != len(b):
         return 0.0
     dot = sum(x * y for x, y in zip(a, b))
@@ -47,6 +54,7 @@ def cosine(a, b):
 
 
 def encode_text(record_type, title, is_completed):
+    """Формирует текстовое представление записи с типом и отметкой выполнения."""
     text = f"[{record_type}] {title}"
     if is_completed:
         text += _DONE_MARK
@@ -54,6 +62,7 @@ def encode_text(record_type, title, is_completed):
 
 
 def decode_text(text):
+    """Разбирает текстовое представление записи на тип, название и статус выполнения."""
     is_completed = text.endswith(_DONE_MARK)
     if is_completed:
         text = text[: -len(_DONE_MARK)]
@@ -68,18 +77,21 @@ def decode_text(text):
 
 
 def dt_to_date_time(dt):
+    """Преобразует datetime в пару (date_str, time_str) или (None, None)."""
     if dt is None:
         return None, None
     return dt.strftime("%Y-%m-%d"), dt.strftime("%H:%M")
 
 
 def vec_to_blob(vec):
+    """Сериализует вектор эмбеддинга в BLOB для хранения в БД."""
     if vec is None:
         return None
     return ",".join(f"{x:.6f}" for x in vec).encode("ascii")
 
 
 def blob_to_vec(blob):
+    """Десериализует BLOB обратно в список float."""
     if not blob:
         return None
     try:
@@ -89,6 +101,7 @@ def blob_to_vec(blob):
 
 
 def row_to_record(row):
+    """Преобразует строку БД в словарь записи."""
     record_id, date_s, time_s, text, embedding_blob = row
     record_type, title, is_completed = decode_text(text)
     if date_s:
@@ -107,22 +120,32 @@ def row_to_record(row):
 
 
 def public(record):
+    """Возвращает публичное представление записи без поля embedding."""
     return {key: value for key, value in record.items() if key != "embedding"}
 
 
 def error(message):
+    """Формирует стандартный ответ об ошибке."""
     return {"success": False, "error": message}
 
 
 class SQLiteBackend:
+    """
+    Бэкенд для хранения и поиска записей (встречи, напоминания, задачи) в SQLite.
+    Поддерживает создание, обновление, удаление, семантический и текстовый поиск,
+    а также защиту от дубликатов по дате/времени.
+    """
+
     def __init__(self, db_path=DB_PATH):
         self.db_path = db_path
         self._ensure_schema()
 
     def _connect(self):
+        """Создаёт и возвращает соединение с SQLite."""
         return sqlite3.connect(self.db_path)
 
     def _ensure_schema(self):
+        """Создаёт таблицу events и добавляет колонку embedding, если её нет."""
         conn = self._connect()
         try:
             conn.execute(
@@ -137,6 +160,7 @@ class SQLiteBackend:
             conn.close()
 
     def _insert(self, dt, text, embedding=None):
+        """Вставляет новую запись в таблицу events и возвращает её id."""
         conn = self._connect()
         try:
             cur = conn.execute(
@@ -151,6 +175,7 @@ class SQLiteBackend:
             conn.close()
 
     def _fetch_all(self):
+        """Возвращает все строки из таблицы events, отсортированные по дате и времени."""
         conn = self._connect()
         try:
             cur = conn.execute(
@@ -162,6 +187,7 @@ class SQLiteBackend:
             conn.close()
 
     def _fetch_one(self, record_id):
+        """Возвращает одну строку из таблицы events по id или None."""
         conn = self._connect()
         try:
             cur = conn.execute(
@@ -174,6 +200,7 @@ class SQLiteBackend:
             conn.close()
 
     def _update_row(self, record_id, date_s, time_s, text, embedding=None):
+        """Обновляет дату, время, текст и эмбеддинг записи по id."""
         conn = self._connect()
         try:
             conn.execute(
@@ -186,6 +213,7 @@ class SQLiteBackend:
             conn.close()
 
     def _update_embedding(self, record_id, embedding):
+        """Обновляет только эмбеддинг записи по id."""
         if embedding is None:
             return
         conn = self._connect()
@@ -199,6 +227,7 @@ class SQLiteBackend:
             conn.close()
 
     def delete_record(self, record_id):
+        """Удаляет запись по id."""
         conn = self._connect()
         try:
             conn.execute("DELETE FROM events WHERE id = ?", (record_id,))
@@ -214,6 +243,7 @@ class SQLiteBackend:
         }
 
     def create_meeting(self, title, dt, embedder=None):
+        """Создаёт запись типа meeting."""
         embedding = None
         if embedder is not None:
             try:
@@ -229,6 +259,7 @@ class SQLiteBackend:
                 "datetime": dt.isoformat(timespec="minutes")}
 
     def create_reminder(self, text, dt, embedder=None):
+        """Создаёт запись типа reminder."""
         embedding = None
         if embedder is not None:
             try:
@@ -244,6 +275,7 @@ class SQLiteBackend:
                 "datetime": dt.isoformat(timespec="minutes")}
 
     def create_task(self, title, date=None, time=None, embedder=None):
+        """Создаёт запись типа task."""
         dt = datetime.now()
         if date:
             try:
@@ -266,6 +298,7 @@ class SQLiteBackend:
                 "datetime": dt.isoformat(timespec="minutes")}
 
     def list_events(self, period="today"):
+        """Возвращает события за указанный период (через scheduler)."""
         events = scheduler.get_events(period=period)
         return {
             "success": True,
@@ -279,6 +312,7 @@ class SQLiteBackend:
         }
 
     def search_events(self, query):
+        """Текстовый поиск событий (через scheduler)."""
         events = scheduler.search_events(query)
         return {
             "success": True,
@@ -293,6 +327,7 @@ class SQLiteBackend:
 
     def create_record(self, record_type, title, record_date,
                       created_at, is_completed, embedding=None):
+        """Универсальное создание записи с проверкой дубликатов."""
         if record_date:
             dt = parse_iso(record_date)
         else:
@@ -340,7 +375,9 @@ class SQLiteBackend:
             "is_completed": is_completed,
         }
         return {"success": True, "record": record}
+
     def list_tasks(self):
+        """Возвращает все записи."""
         rows = self._fetch_all()
         return {
             "success": True,
@@ -348,6 +385,7 @@ class SQLiteBackend:
         }
 
     def get_record(self, record_id):
+        """Получает одну запись по id."""
         row = self._fetch_one(record_id)
         if row is None:
             return None
@@ -355,6 +393,7 @@ class SQLiteBackend:
 
     def _filtered_records(self, record_type=None, date_from=None,
                           date_to=None, is_completed=None):
+        """Внутренний фильтр записей по типу, датам и статусу."""
         matches = []
         for row in self._fetch_all():
             record = row_to_record(row)
@@ -376,6 +415,7 @@ class SQLiteBackend:
     def search_records(self, query_embedding=None, record_type=None,
                        date_from=None, date_to=None, is_completed=None,
                        top_k=DEFAULT_TOP_K, min_score=SEARCH_MIN_SCORE):
+        """Поиск записей с поддержкой эмбеддингов и фильтров."""
         matches = self._filtered_records(
             record_type=record_type,
             date_from=date_from,
@@ -414,6 +454,7 @@ class SQLiteBackend:
     def search_records_by_text(self, words, record_type=None,
                                date_from=None, date_to=None,
                                is_completed=None, top_k=DEFAULT_TOP_K):
+        """Поиск записей по ключевым словам в названии."""
         if not words:
             return {"success": True, "total_found": 0, "records": []}
 
@@ -450,6 +491,7 @@ class SQLiteBackend:
         }
 
     def update_record(self, record_id, changes, embedding=None):
+        """Обновляет существующую запись."""
         row = self._fetch_one(record_id)
         if row is None:
             return error(f"Запись с id={record_id} не найдена.")
@@ -488,6 +530,7 @@ class SQLiteBackend:
         }
 
     def backfill_embeddings(self, embedder):
+        """Дозаполняет отсутствующие эмбеддинги для всех записей."""
         if embedder is None:
             return {"success": True, "updated": 0}
         updated = 0
