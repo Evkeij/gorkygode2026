@@ -1,0 +1,28 @@
+# Зависимости Node.js
+node_modules/
+
+# Результаты сборки
+dist/
+release/
+build/
+
+# Результаты Python-сборки
+/dist-python/
+
+# Переменные окружения и секреты
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Временные файлы и логи
+*.log
+.DS_Store
+
+# Виртуальное окружение
+.venv-voice/

@@ -234,25 +234,60 @@ ipcMain.handle('voice:transcribe', async (_event, audioBuffer) => {
             ? path.join(process.resourcesPath, 'recognize.exe')
             : path.join(app.getAppPath(), 'recognize.exe');
 
+
         const result = await new Promise((resolve, reject) => {
-            const child = spawn(recognizerPath, [audioPath], { windowsHide: true });
+            const child = spawn(recognizerPath, [audioPath], {
+                windowsHide: true,
+                stdio: ['ignore', 'pipe', 'pipe'],
+            });
+
             let stdout = '';
             let stderr = '';
+            let settled = false;
+
+            const timeout = setTimeout(() => {
+                if (settled) return;
+
+                settled = true;
+                child.kill();
+
+                reject(new Error('Превышено время ожидания распознавания речи.'));
+            }, 20000);
+
             child.stdout.setEncoding('utf8');
             child.stderr.setEncoding('utf8');
-            child.stdout.on('data', (data) => { stdout += data; });
-            child.stderr.on('data', (data) => { stderr += data; });
-            child.on('error', (error) => reject(new Error(`Ошибка: ${error.message}`)));
+
+            child.stdout.on('data', (data) => {
+                stdout += data;
+            });
+
+            child.stderr.on('data', (data) => {
+                stderr += data;
+            });
+
+            child.on('error', (error) => {
+                if (settled) return;
+
+                settled = true;
+                clearTimeout(timeout);
+                reject(new Error(`Ошибка запуска распознавания: ${error.message}`));
+            });
+
             child.on('close', (code) => {
+                if (settled) return;
+
+                settled = true;
+                clearTimeout(timeout);
+
                 const jsonLine = stdout
                     .split(/\r?\n/)
-                    .map((l) => l.trim())
+                    .map((line) => line.trim())
                     .filter(Boolean)
                     .reverse()
                     .find((line) => {
                         try {
-                            const p = JSON.parse(line);
-                            return p && ('text' in p || 'error' in p);
+                            const parsed = JSON.parse(line);
+                            return parsed && ('text' in parsed || 'error' in parsed);
                         } catch {
                             return false;
                         }
@@ -260,13 +295,21 @@ ipcMain.handle('voice:transcribe', async (_event, audioBuffer) => {
 
                 if (jsonLine) {
                     const parsed = JSON.parse(jsonLine);
-                    if (code === 0 && parsed.text) resolve(parsed);
-                    else reject(new Error(parsed.error || stderr.trim() || 'Не распознано'));
+
+                    if (code === 0 && parsed.text) {
+                        resolve(parsed);
+                    } else {
+                        reject(new Error(parsed.error || stderr.trim() || 'Не распознано'));
+                    }
+
                     return;
                 }
+
                 reject(new Error(stderr.trim() || stdout.trim() || `Код ${code}`));
             });
         });
+
+
         return result;
     } catch (error) {
         return { text: '', error: error.message };

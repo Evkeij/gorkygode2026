@@ -1,13 +1,18 @@
-# -*- coding: utf-8 -*-
-import sys
+"""
+Скрипт синтеза речи через Yandex SpeechKit.
+Принимает текст, сохраняет mp3 и возвращает путь к файлу в JSON.
+"""
+
 import json
 import os
-import requests
+import sys
 import tempfile
+
+import requests
 from dotenv import load_dotenv
 
 if getattr(sys, 'frozen', False):
-    BASE_DIR = os.path.dirname(sys.executable)
+    BASE_DIR = os.path.join(os.getenv('APPDATA'), "DescVoice")
 else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -19,6 +24,7 @@ YANDEX_FOLDER = os.getenv("YANDEX_CLOUD_FOLDER") or os.getenv("YANDEX_FOLDER")
 
 
 def main():
+    """Синтезирует речь из переданного текста и сохраняет результат во временный файл."""
     if len(sys.argv) < 2:
         print(json.dumps({"ok": False, "error": "Не передан текст"}, ensure_ascii=False))
         sys.exit(1)

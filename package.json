@@ -56,10 +56,6 @@
                 "to": "speak.exe"
             },
             {
-                "from": ".env",
-                "to": ".env"
-            },
-            {
                 "from": "public/icon.ico",
                 "to": "icon.ico"
             }

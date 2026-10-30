@@ -1,10 +1,15 @@
+"""
+Модуль планировщика уведомлений и вспомогательных функций работы с событиями.
+Содержит логику выборки событий по периодам и простой текстовый поиск.
+"""
+
 import json
 import os
 import sqlite3
+import sys
 import threading
 import time
 from datetime import datetime, timedelta
-import sys
 
 if getattr(sys, 'frozen', False):
     # Папка: C:\Users\user\AppData\Roaming\DescVoice
@@ -19,7 +24,10 @@ NOTIFIED_PATH = os.path.join(BASE_DIR, "notified.json")
 TABLE = "events"
 
 _started = False
+
+
 def _load_notified():
+    """Загружает множество id уже уведомлённых событий."""
     if not os.path.exists(NOTIFIED_PATH):
         return set()
     try:
@@ -33,6 +41,7 @@ def _load_notified():
 
 
 def _save_notified(ids):
+    """Сохраняет множество id уведомлённых событий."""
     try:
         with open(NOTIFIED_PATH, "w", encoding="utf-8") as f:
             json.dump(sorted(ids), f)
@@ -41,7 +50,7 @@ def _save_notified(ids):
 
 
 def _read_rows(where_sql: str, params: tuple):
-
+    """Читает строки из таблицы events с заданным WHERE."""
     conn = sqlite3.connect(DB_PATH)
     try:
         rows = conn.execute(
@@ -63,7 +72,7 @@ def _read_rows(where_sql: str, params: tuple):
 
 
 def get_events(period=None, date_from=None, date_to=None):
-
+    """Возвращает события за указанный период или диапазон дат."""
     if date_from is None or date_to is None:
         now = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         p = (period or "").lower()
@@ -90,6 +99,7 @@ def get_events(period=None, date_from=None, date_to=None):
 
 
 def search_events(query: str):
+    """Простой текстовый поиск событий по подстроке."""
     q = query.strip().lower()
     if len(q) < 3:
         return _read_rows("WHERE LOWER(text) LIKE ?", (f"%{q}%",))
@@ -111,6 +121,7 @@ def search_events(query: str):
 
 
 def run_scheduler():
+    """Бесконечный цикл проверки событий и вывода уведомлений."""
 
     notified = _load_notified()
 
@@ -129,10 +140,8 @@ def run_scheduler():
             if ev["id"] in notified:
                 continue
 
-
             if ev["text"].endswith(" ✓"):
                 continue
-
 
             if now <= ev["datetime"] <= now + timedelta(minutes=5):
                 print(
@@ -149,6 +158,7 @@ def run_scheduler():
 
 
 def start_scheduler_in_thread():
+    """Запускает планировщик в фоновом потоке (один раз)."""
     global _started
     if _started:
         return

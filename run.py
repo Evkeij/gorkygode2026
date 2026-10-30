@@ -1,3 +1,8 @@
+"""
+Обёртка для запуска FastAPI через uvicorn.
+Используется при сборке backend.exe с помощью PyInstaller.
+"""
+
 import uvicorn
 
 if __name__ == "__main__":
