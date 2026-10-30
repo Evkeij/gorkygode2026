@@ -1,10 +1,4 @@
 """Получение эмбеддингов через Yandex Cloud (OpenAI-совместимый API)."""
-
-# Модели эмбеддингов Yandex. Проверь точный URI в консоли Yandex Cloud:
-# итоговый идентификатор собирается как emb://<folder>/<модель>.
-# Для записей и запросов можно использовать разные модели
-# (обычно «doc» для записей и «query» для запросов), но их векторы
-# должны быть из одного семейства.
 EMBEDDING_DOC_MODEL = "text-embeddings-v2-query/latest"
 EMBEDDING_QUERY_MODEL = "text-embeddings-v2-query/latest"
 
