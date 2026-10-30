@@ -1,14 +1,17 @@
+"""
+FastAPI-приложение голосового ассистента.
+Предоставляет REST API для списка событий и чата с ассистентом.
+"""
 
 from datetime import datetime
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from Backend import SQLiteBackend
-from tools import execute_tool
 from assistant import Assistant
+from Backend import SQLiteBackend
 
 app = FastAPI()
 
@@ -30,6 +33,7 @@ class RecordIn(BaseModel):
     date: Optional[str] = None
     is_completed: bool = False
 
+
 class RecordUpdate(BaseModel):
     title: Optional[str] = None
     date: Optional[str] = None
@@ -37,8 +41,10 @@ class RecordUpdate(BaseModel):
     is_completed: Optional[bool] = None
     type: Optional[str] = None
 
+
 class ChatIn(BaseModel):
     text: str
+
 
 @app.get("/events")
 def list_events(
@@ -56,6 +62,8 @@ def list_events(
         is_completed=is_completed,
         top_k=1000,
     )
+
+
 @app.post("/chat")
 def chat(payload: ChatIn):
     reply = assistant.handle(payload.text)
