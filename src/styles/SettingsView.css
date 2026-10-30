@@ -1,0 +1,135 @@
+.settings-glass-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 8px clamp(18px, 3vw, 36px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(242, 208, 107, 0.25) transparent;
+}
+
+.setting-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.setting-item:last-child {
+  border-bottom: 0;
+}
+
+.setting-copy {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+  min-width: 0;
+  text-align: left;
+}
+
+.setting-copy h2 {
+  width: 100%;
+  margin: 0;
+  color: var(--accent);
+  font-size: var(--font-normal);
+  font-weight: var(--weight-semibold);
+  line-height: 1.5;
+  text-align: left;
+}
+
+.setting-copy p {
+  width: 100%;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-small);
+  font-weight: var(--weight-normal);
+  line-height: 1.5;
+  text-align: left;
+}
+
+.setting-switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 48px;
+  height: 27px;
+  padding: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 20px;
+  background: #1e2530;
+  cursor: pointer;
+  transition: background 200ms ease, border-color 200ms ease;
+}
+
+.setting-switch span {
+  display: block;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: #f5f5f5;
+  transition: transform 200ms ease, background 200ms ease;
+}
+
+.setting-switch.enabled {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.setting-switch.enabled span {
+  background: #1e2530;
+  transform: translateX(20px);
+}
+
+.setting-theme-control {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.theme-option {
+  padding: 9px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: rgba(30, 37, 48, 0.7);
+  color: rgba(245, 245, 245, 0.8);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: border-color 180ms ease, background 180ms ease, color 180ms ease;
+}
+
+.theme-option:hover:not(:disabled) {
+  border-color: rgba(242, 208, 107, 0.4);
+}
+
+.theme-option.active {
+  border-color: rgba(242, 208, 107, 0.65);
+  background: rgba(242, 208, 107, 0.13);
+  color: var(--accent);
+}
+
+.theme-option:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+@media (max-width: 600px) {
+  .setting-item {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .setting-theme-control {
+    justify-content: flex-start;
+  }
+}
